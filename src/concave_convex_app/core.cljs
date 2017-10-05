@@ -1,5 +1,7 @@
 (ns concave-convex-app.core
-    (:require [quil.core :as q :include-macros true]))
+    (:require [quil.core :as q :include-macros true]
+              [concave-convex-app.utils :as u]
+              [dommy.core :as d :refer-macros [sel1]]))
 
 (enable-console-print!)
 
@@ -7,19 +9,10 @@
 
 ;; define your app data so that it doesn't get over-written on reload
 
-(defonce app-state (atom {:points [{:x 166 :y 166} {:x 200 :y 300}]}))
+(defonce atom-inital-state {:points [] :allow-user-interaction true :result nil})
 
-;; ================== utils ======================================
-
-(defn zipz [x]
-  (cond
-    (empty? x) []
-    (= (count x) 1) []
-    :else (let [p1 (butlast x)
-                p2 (rest x)]
-            (map vector p1 p2))))
-
-;; ===============================================================
+(defonce app-state (atom atom-inital-state)) 
+(defonce threshold 20)
 
 (defn on-js-reload []
   ;; optionally touch your app-state to force rerendering depending on
@@ -31,20 +24,38 @@
     (q/background 200)
     (q/fill 0)
     (let [points (get @app-state :points)
-          zpoints (zipz points)]
+          zpoints (u/zipz points)]
       (doseq [[z1 z2] zpoints]
        (q/line (:x z1) (:y z1) (:x z2) (:y z2)))
       (doseq [point points]
-        (q/ellipse (:x point) (:y point) 20 20))))
+        (q/ellipse (:x point) (:y point) 20 20))
+      (if (not (nil? (:result @app-state)))
+       (q/text (:result @app-state) 0 10))))
 
 (defn my-mouse-clicked []
-  (let [x (q/mouse-x)
-        y (q/mouse-y)
-        msg (str "Mouse was clicked at " x " and " y)]
-    (do
-       (swap! app-state update-in [:points] #(conj % {:x x :y y}))
-       (println msg) 
-      )))
+  (if (:allow-user-interaction @app-state)
+    (let [x (q/mouse-x)
+          y (q/mouse-y)
+          point {:x x :y y}
+          points (:points @app-state)
+          msg (str "Mouse was clicked at " x " and " y)
+          fuzz (u/fuzzy-match point points threshold)
+          final-point (if (empty? fuzz)
+                        point
+                        (first fuzz))]
+      (do
+        (swap! app-state update-in [:points] #(conj % final-point))
+        (let [result-message (cond 
+                                (and (= final-point (first points)) (> (count points) 1)) 
+                                     (u/concave-or-convex? (:points @app-state))
+                                (not (u/properly-closed? (:points @app-state)))
+                                    "Strange non-closed polygon detected! redo!!"
+                                :else nil)]
+                (when (not (nil? result-message))
+                  (swap! app-state update-in [:allow-user-interaction] not) 
+                  (swap! app-state assoc :result result-message)))
+        (println msg)))
+    (println "Results stage! Click clear to start over")))
 
 
 (q/defsketch hello
@@ -52,3 +63,8 @@
     :host "chicken"
     :size [500 500]
     :mouse-clicked my-mouse-clicked)
+
+(defn click-handler []
+  (reset! app-state atom-inital-state))
+
+(d/listen! (sel1 :#reset) :click click-handler)
