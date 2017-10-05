@@ -3,11 +3,17 @@
 Simple web-app where one draws a simple polygon and the app tells you whether the polygon is
 concave or convex.
 
-(As of now, it does not intersection test)
+(As of now, there is no intersection detection)
 
 ## Overview
 
 Exercise in using clojurescript
+
+## Work left to do
+
+1. Code cleanup (core.cljs is still pretty ugly)
+2. Detect line intersection and warn user
+3. Better UI
 
 ## Setup
 
